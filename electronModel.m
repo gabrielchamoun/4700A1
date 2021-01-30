@@ -1,7 +1,6 @@
 clc; close all; clear all;
 set(0, 'DefaultFigureWindowStyle', 'docked')
 
-
 eCount = 1000;      % Total number of electrons
 ePlotted = 10;      % Number of Electrons Plotted
 tStop = 0.1e-9;     % Stop Time
@@ -15,21 +14,27 @@ Width = 200e-9;
 Height = 100e-9;
 
 % Thermal Velocity
-Temp = 300; % K
+Temp = 300;     % K
 vT = sqrt((kB*Temp)/mn);
 
+% scattering
+% probability of scattering
+tmin = 0.2e-10;
+pScatter = 1 - exp(-dt/tmin);
+
+
+% Initializing all electrons with a position and velocity
 eGroup = struct('x', 'y', 'vx', 'vy');  % Electron Object Classification
-eVelocities = vT+rand(1,eCount);
+eVelocities = vT + rand(1,eCount);
 eColours = rand(eCount,3);   % Random colours for plotting
 for i = 1 : eCount
     eGroup(i).x = rand()*Width;
     eGroup(i).y = rand()*Height;
-    % Randomized velocities in direction and magnitude ... 1000*rand()
+    % Randomized velocities in direction and magnitude
     eGroup(i).vx = eVelocities(i)*(2*randi([0 1])-1);
     eGroup(i).vy = eVelocities(i)*(2*randi([0 1])-1);
 end
 
-plot(0,0);      % Init plot (comes up faster)
 t = 0;          % Init time
 counter = 1;    % Init Counter
 while t < tStop
@@ -40,8 +45,18 @@ while t < tStop
         eGroup(i).x(counter+1) = eGroup(i).x(counter) + eGroup(i).vx * dt;
         eGroup(i).y(counter+1) = eGroup(i).y(counter) + eGroup(i).vy * dt;
         
-        %Plotting
+        % scattering effect - Randomize direction/magnitude of velocity
+        % probability of scattering based on p.
+        if pScatter > rand()	% 'if true'
+            eVelocities(i) = vT + rand();   % Regenerating a random velocity
+            eGroup(i).vx = eVelocities(i)*(2*randi([0 1])-1);
+            eGroup(i).vy = eVelocities(i)*(2*randi([0 1])-1);
+        end
+        
+        
+        % Plotting the first 10 electrons
         if (i <= 10)
+            subplot(2,1,1)
             p = plot( [eGroup(i).x(counter), eGroup(i).x(counter+1)], ...
                 [eGroup(i).y(counter), eGroup(i).y(counter+1)] );
             p.Color = eColours(i,:);
@@ -73,11 +88,15 @@ while t < tStop
         end
         
     end
+    pause(0.001);       % Delay for animation
+    axis([0,Width,0,Height]);  % Plot Axis' set
+    t = t + dt;         % Incrementing Time
     
-    pause(0.001);    % To display trace as animation a delay is presented
-    axis([0,Width,0,Height]);  % Plot Axis' being set
-    t = t + dt;        % Incrementing Time
-    counter = counter + 1;      % Incrementing Simulation counter
+    Time(:,counter) = t;
+    avgVelocity = mean(([eGroup(:).vx].^2 + [eGroup(:).vy].^2).^(1/2));
+    Temp(:,counter) = ( (avgVelocity^2) * mn) / kB;
+    subplot(2,1,2), plot(Time, Temp);
     
+    counter = counter + 1;      % Incrementing Sim Counter
 end
 hold off
