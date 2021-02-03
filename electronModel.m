@@ -3,11 +3,11 @@ set(0, 'DefaultFigureWindowStyle', 'docked')
 
 eCount = 1000;      % Total number of electrons
 ePlotted = 10;      % Number of Electrons Plotted
-tStop = 0.1e-9;     % Stop Time
-dt = 1e-12;         % Time step 1ps
+dt = 10e-15;        % Time step 10fs -> ( -(Width/100) / vT )
+tStop = 100 * dt;	% Stop Time
 
-kB = 1.38066e-23;   % J/K
-m0 = 4.66307e-26;   % Kg (Atomic mass of silicon = 28.0855)
+kB = 1.38066e-23;   % J/K 
+m0 = 9.11e-31;
 mn = 0.26*m0;
 
 Width = 200e-9;
@@ -15,24 +15,36 @@ Height = 100e-9;
 
 % Thermal Velocity
 Temp = 300;     % K
-vT = sqrt((kB*Temp)/mn);
+vT = sqrt((2*kB*Temp)/mn);
 
 % scattering
 % probability of scattering
-tmin = 0.2e-10;
+toggleS = 1;    % Toggle Scattering OFF(0) ON(1)
+tmin = 0.2e-12;
 pScatter = 1 - exp(-dt/tmin);
 
+mfp = vT * tmin;
+fprintf("tmin = %d m\n", tmin);
+fprintf("Mean Free Path = %d m\n", mfp);
+
+
+% bottlenecking
+% Addition of box colliders to the sim
+% Providing opposing corners of desired boxes
+box = [
+    0.8, 0.8, 1.2, 1.2;
+    0, 0.4, 0.4, 0;
+    ];
 
 % Initializing all electrons with a position and velocity
-eGroup = struct('x', 'y', 'vx', 'vy');  % Electron Object Classification
-eVelocities = vT + rand(1,eCount);
-eColours = rand(eCount,3);   % Random colours for plotting
+eObj = struct('x', 0, 'y', 0, 'vx', 0, 'vy', 0, 'vm', 0);  % Electron Object Classification
+eCol = rand(eCount,3);   % Random colours for plotting
 for i = 1 : eCount
-    eGroup(i).x = rand()*Width;
-    eGroup(i).y = rand()*Height;
-    % Randomized velocities in direction and magnitude
-    eGroup(i).vx = eVelocities(i)*(2*randi([0 1])-1);
-    eGroup(i).vy = eVelocities(i)*(2*randi([0 1])-1);
+    eObj(i).x = rand()*Width;
+    eObj(i).y = rand()*Height;
+    eObj(i).vx = (sqrt(vT^2 / 2)*randn(1,1));
+    eObj(i).vy = (sqrt(vT^2 / 2)*randn(1,1));
+    eObj(i).vm = sqrt(eObj(i).vx^2 + eObj(i).vy^2);
 end
 
 t = 0;          % Init time
@@ -41,62 +53,62 @@ while t < tStop
 
     for i = 1 : eCount
         
-        % Updating Position
-        eGroup(i).x(counter+1) = eGroup(i).x(counter) + eGroup(i).vx * dt;
-        eGroup(i).y(counter+1) = eGroup(i).y(counter) + eGroup(i).vy * dt;
+        % updating position
+        eObj(i).x(counter+1) = eObj(i).x(counter) + eObj(i).vx * dt;
+        eObj(i).y(counter+1) = eObj(i).y(counter) + eObj(i).vy * dt;
         
         % scattering effect - Randomize direction/magnitude of velocity
         % probability of scattering based on p.
-        if pScatter > rand()	% 'if true'
-            eVelocities(i) = vT + rand();   % Regenerating a random velocity
-            eGroup(i).vx = eVelocities(i)*(2*randi([0 1])-1);
-            eGroup(i).vy = eVelocities(i)*(2*randi([0 1])-1);
+        if pScatter > rand() && toggleS	% 'if true'
+            eObj(i).vx = (sqrt(vT^2 / 2)*randn(1,1));
+            eObj(i).vy = (sqrt(vT^2 / 2)*randn(1,1));
         end
+        % magnitude of velocity
+        eObj(i).vm = sqrt(eObj(i).vx.^2 + eObj(i).vy.^2);
         
-        
-        % Plotting the first 10 electrons
+        % plotting only the first 10 electrons
         if (i <= 10)
             subplot(2,1,1)
-            p = plot( [eGroup(i).x(counter), eGroup(i).x(counter+1)], ...
-                [eGroup(i).y(counter), eGroup(i).y(counter+1)] );
-            p.Color = eColours(i,:);
+            p = plot( [eObj(i).x(counter), eObj(i).x(counter+1)], ...
+                [eObj(i).y(counter), eObj(i).y(counter+1)] );
+            p.Color = eCol(i,:);
             hold on
         end
-        % Conditional Statements
+        
+        % boundary conditions
         % y = 200nm boundary
-        if eGroup(i).x(counter+1) > Width
-            eGroup(i).x(counter+1) = eGroup(i).x(counter+1) - Width;
+        if eObj(i).x(counter+1) > Width
+            eObj(i).x(counter+1) = eObj(i).x(counter+1) - Width;
         end
         
         % y = 0nm boundary
-        if eGroup(i).x(counter+1) < 0
-            eGroup(i).x(counter+1) = eGroup(i).x(counter+1) + Width;
+        if eObj(i).x(counter+1) < 0
+            eObj(i).x(counter+1) = eObj(i).x(counter+1) + Width;
         end
         
         % x = 100nm boundary
-        if eGroup(i).y(counter+1) > Height
-            diff = eGroup(i).y(counter+1) - Height;
-            eGroup(i).y(counter+1) = Height - diff;
-            eGroup(i).vy = -eGroup(i).vy;
+        if eObj(i).y(counter+1) > Height
+            diff = eObj(i).y(counter+1) - Height;
+            eObj(i).y(counter+1) = Height - diff;
+            eObj(i).vy = -eObj(i).vy;
         end
         
         % x = 0nm boundary
-        if eGroup(i).y(counter+1) < 0
-            diff = -eGroup(i).y(counter+1);
-            eGroup(i).y(counter+1) = diff;
-            eGroup(i).vy = -eGroup(i).vy;
-        end
-        
+        if eObj(i).y(counter+1) < 0
+            diff = -eObj(i).y(counter+1);
+            eObj(i).y(counter+1) = diff;
+            eObj(i).vy = -eObj(i).vy;
+        end        
     end
-    pause(0.001);       % Delay for animation
+    pause(0.05);       % Delay for animation
     axis([0,Width,0,Height]);  % Plot Axis' set
     t = t + dt;         % Incrementing Time
     
     Time(:,counter) = t;
-    avgVelocity = mean(([eGroup(:).vx].^2 + [eGroup(:).vy].^2).^(1/2));
-    Temp(:,counter) = ( (avgVelocity^2) * mn) / kB;
-    subplot(2,1,2), plot(Time, Temp);
-    
+    averageTemperature = ( ([eObj(:).vm].^2) .* mn ) ./ (kB*2);
+    Temp(:,counter) = mean(averageTemperature); % Average Temperature
+    subplot(2,2,3), plot(Time, Temp);
+    subplot(2,2,4), histogram([eObj(:).vm],50)
     counter = counter + 1;      % Incrementing Sim Counter
 end
 hold off
