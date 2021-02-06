@@ -224,7 +224,7 @@ while t < tStop
     ptsY = linspace(0, Height, 50);
     N = histcounts2(yVect, xVect, ptsY, ptsX);
     subplot(4, 2, 7);
-    imagesc(ptsY,ptsX,N);
+    imagesc(ptsY,ptsX,N),colorbar
     
     % Plotting Temperature Map
     xv = linspace(min(xVect), max(xVect), 100);
@@ -232,7 +232,7 @@ while t < tStop
     [X,Y] = meshgrid(xv, yv);
     Z = griddata(xVect,yVect,allTemperatures,X,Y);
     subplot(4, 2, 8);
-    imagesc(xv,yv,Z)
+    imagesc(xv,yv,Z),colorbar
     axis([0,Width,0,Height]);  % Plot Axis' set
     
     counter = counter + 1;      % Incrementing Sim Counter
