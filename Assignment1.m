@@ -1,10 +1,6 @@
 clc; close all; clear all;
 set(0, 'DefaultFigureWindowStyle', 'docked')
 
-% 4 questions
-% MFP, Density and Temperature Plots correctness?
-% Matlab publishing requirements
-
 eCount = 1000;      % Total number of electrons
 ePlotted = 10;      % Number of Electrons Plotted
 dt = 10e-15;        % Time step 10fs -> ( -(Width/100) / vT )
@@ -37,7 +33,7 @@ fprintf("Nominal Mean Free Path = %d m\n", mfp);
 
 % Bottlenecking Settings
 % Addition of box colliders to the sim
-toggleDiffusive = 0; % 0 - Specular (Reflective) 1 - Diffusive (re-thermalize)
+toggleDiffusive = 1; % 0 - Specular (Reflective) 1 - Diffusive (re-thermalize)
 % Providing opposing corners of desired boxes
 box = [ % x1,y1, x2, y2 (Per box)
     0.8, 0, 1.2, 0.4;
@@ -52,8 +48,7 @@ for i = 1 : eCount
     eObj(i).x = rand()*Width;
     eObj(i).y = rand()*Height;
     for b = 1:size(box,1)
-        while eObj(i).x < Width && eObj(i).x > 0 && eObj(i).y < Height && eObj(i).y > 0 && ...
-        eObj(i).x <= max(box(b,1),box(b,3)) && eObj(i).x >= min(box(b,1),box(b,3)) && ...
+        while eObj(i).x <= max(box(b,1),box(b,3)) && eObj(i).x >= min(box(b,1),box(b,3)) && ...
         eObj(i).y <= max(box(b,2),box(b,4)) && eObj(i).y >= min(box(b,2),box(b,4))
             eObj(i).x = rand()*Width;
             eObj(i).y = rand()*Height;
@@ -102,19 +97,25 @@ while t < tStop
                 fill(boxX, boxY, 'k');
             end
             
-            % Boundaries defined by coordiantes
+            % Boundaries defined by coordinates
             boundL = min(box(b,1),box(b,3));    % Left Wall
             boundR = max(box(b,1),box(b,3));    % Right Wall
             boundT = max(box(b,2),box(b,4));    % Top Wall
             boundB = min(box(b,2),box(b,4));    % Bottom Wall
             
+            % Conditions set by boundaires
+            condL = eObj(i).x(counter-1) <= boundL && eObj(i).x(counter) >= boundL;
+            condR = eObj(i).x(counter-1) >= boundR && eObj(i).x(counter) <= boundR;
+            condB = eObj(i).y(counter-1) <= boundB && eObj(i).y(counter) >= boundB;
+            condT = eObj(i).y(counter-1) >= boundT && eObj(i).y(counter) <= boundT;
+            % Corner Cases
+            condTC = condT && condR || condT && condL;
+            condBC = condB && condR || condB && condL;
+            
             % Checking Left and Right of the box First. 
             % Start by confirming if within Top and Bottom Boundaries
-            if eObj(i).y(counter) < boundT && eObj(i).y(counter) > boundB
-                % Conditions check prev position & compare with current
-                condL = eObj(i).x(counter-1) < boundL && eObj(i).x(counter) >= boundL;
-                condR = eObj(i).x(counter-1) > boundR && eObj(i).x(counter) <= boundR;
-                if condL || condR
+            if eObj(i).y(counter) <= boundT && eObj(i).y(counter) >= boundB
+                if condL || condR || condTC || condBC
                     if toggleDiffusive == 1 % If diffusion is toggled
                         posX = eObj(i).vx >= 0;	% Storing sign
                         posY = eObj(i).vy >= 0;
@@ -140,9 +141,7 @@ while t < tStop
             end
             % Checking Top and Bottom of the box. 
             % Start by confirming if within Left and Right Boundaries
-            if eObj(i).x(counter) < boundR && eObj(i).x(counter) > boundL
-                condB = eObj(i).y(counter-1) < boundB && eObj(i).y(counter) >= boundB;
-                condT = eObj(i).y(counter-1) > boundT && eObj(i).y(counter) <= boundT;
+            if eObj(i).x(counter) <= boundR && eObj(i).x(counter) >= boundL
                 if condT || condB
                     if toggleDiffusive == 1
                         posX = eObj(i).vx >= 0;
@@ -160,7 +159,7 @@ while t < tStop
                     else
                         eObj(i).vy = -eObj(i).vy;
                     end
-                    if condB
+                    if condB    % Shifting reflection point
                         eObj(i).y(counter) = boundB - (eObj(i).y(counter) - boundB);
                     else
                         eObj(i).y(counter) = boundT + (boundT - eObj(i).y(counter));
@@ -169,38 +168,39 @@ while t < tStop
             end
         end
         
-        % Boundary Conditions for left and right
-        if eObj(i).y(counter) > Height  % x = 100nm boundary
+        % Top and Bottom Boundary Conditions
+        if eObj(i).y(counter) > Height % y = 200nm boundary 
             diff = eObj(i).y(counter) - Height;
             eObj(i).y(counter) = Height - diff;
             eObj(i).vy = -eObj(i).vy;
         end
-        if eObj(i).y(counter) < 0   % x = 0nm boundary
+        if eObj(i).y(counter) < 0   % y = 0nm boundary
             diff = -eObj(i).y(counter);
             eObj(i).y(counter) = diff;
             eObj(i).vy = -eObj(i).vy;
         end
         
-        % plotting only the first 10 electrons
+        % Plotting Electrons
         if (i <= ePlotted)
-            subplot(4,1,1)
+            subplot(4,1,1)  % Plotting previous and current position
             p = plot( [eObj(i).x(counter-1), eObj(i).x(counter)], ...
                 [eObj(i).y(counter-1), eObj(i).y(counter)] );
-            p.Color = eCol(i,:);
+            p.Color = eCol(i,:);        % Giving a unique colour to each
             axis([0,Width,0,Height]);	% Plot Axis' set
+            title('Electron Modelling');
             hold on
         end
         
-        % Boundary Conditions for top and bottom
-        if eObj(i).x(counter) > Width   % y = 200nm boundary
+        % Left hand and Right hand side Boundary Conditions
+        if eObj(i).x(counter) > Width   % x = 100nm boundary
             eObj(i).x(counter) = eObj(i).x(counter) - Width;
         end
-        if eObj(i).x(counter) < 0   % y = 0nm boundary
+        if eObj(i).x(counter) < 0   % x = 0nm boundary
             eObj(i).x(counter) = eObj(i).x(counter) + Width;
         end
         
     end
-    pause(0.0001);	% Delay for animation
+    pause(0.00001);	% Delay for animation
     
     % Plotting the Average Temperature over time
     Time(:,counter) = t;
@@ -222,17 +222,17 @@ while t < tStop
     % Plotting an Electron Density map
     ptsX = linspace(0, Width, 100);
     ptsY = linspace(0, Height, 50);
-    N = histcounts2(yVect, xVect, ptsY, ptsX);
+    N = histcounts2(yVect, xVect, ptsY, ptsX);  % Binning the positons
     subplot(4, 2, 7);
-    imagesc(ptsY,ptsX,N),colorbar
+    imagesc(ptsY,ptsX,N),colorbar,title('Electron Density Map');
     
     % Plotting Temperature Map
     xv = linspace(min(xVect), max(xVect), 100);
     yv = linspace(min(yVect), max(yVect), 50);
     [X,Y] = meshgrid(xv, yv);
-    Z = griddata(xVect,yVect,allTemperatures,X,Y);
+    Z = griddata(xVect,yVect,allTemperatures,X,Y);  % Mapping Temps
     subplot(4, 2, 8);
-    imagesc(xv,yv,Z),colorbar
+    imagesc(xv,yv,Z),colorbar,title('Temperature Map');
     axis([0,Width,0,Height]);  % Plot Axis' set
     
     counter = counter + 1;      % Incrementing Sim Counter
